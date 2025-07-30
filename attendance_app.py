@@ -272,12 +272,11 @@ def logout():
 if __name__ == "__main__":
     import os
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
-
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 10000))  # Use Render's assigned port
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 10000))  # Render will set PORT
+    app.run(debug=True, host="0.0.0.0", port=port)
+
+
+
 
 
