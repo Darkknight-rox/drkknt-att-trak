@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, redirect, session
+from flask import Flask, render_template_string, request, redirect, session, url_for
 import json, os
 from datetime import datetime
 
@@ -86,7 +86,6 @@ def register():
         else:
             users[u] = p
             save_users(users)
-            # Initialize empty attendance for the new user
             all_data = json.load(open(attendance_file)) if os.path.exists(attendance_file) else {}
             all_data[u] = {subj: [] for subj in subjects}
             json.dump(all_data, open(attendance_file, "w"))
@@ -111,14 +110,18 @@ def dashboard():
     if "user" not in session:
         return redirect("/")
     data = load_data()
+    selected_subject = None
     if request.method == "POST":
         subject = request.form["subject"]
         status = request.form["status"]
+        selected_subject = subject
         if status in ["present", "absent", "off"]:
             data.setdefault(subject, []).append(status)
             save_data(data)
-        return redirect("/dashboard")
-    
+        return redirect(url_for("dashboard", selected=subject))
+
+    selected_subject = request.args.get("selected", "")
+
     today = datetime.now().strftime("%A")
 
     html = """
@@ -127,14 +130,17 @@ def dashboard():
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     </head><body class="bg-light">
     <div class="container py-4">
-    <h1 class="text-center mb-4">🦇 Dark Knight Attendance Tracker</h1>
-    
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="mb-4">🦇 Dark Knight Attendance Tracker</h1>
+        <img src="{{ url_for('static', filename='FYDERS.jpg') }}" height="60">
+    </div>
+
     <form method="post" class="row g-3">
         <div class="col-md-6">
             <label class="form-label">Subject</label>
             <select name="subject" class="form-select">
                 {% for subj in subjects %}
-                <option value="{{subj}}">{{subj}}</option>
+                <option value="{{subj}}" {% if subj == selected_subject %}selected{% endif %}>{{subj}}</option>
                 {% endfor %}
             </select>
         </div>
@@ -197,7 +203,7 @@ def dashboard():
     <a href="/logout" class="btn btn-outline-danger">Logout</a>
     </div></body></html>
     """
-    return render_template_string(html, data=data, subjects=subjects.keys(), timetable=weekly_timetable, today=today)
+    return render_template_string(html, data=data, subjects=subjects.keys(), timetable=weekly_timetable, today=today, selected_subject=selected_subject)
 
 @app.route("/edit", methods=["GET", "POST"])
 def edit():
@@ -289,8 +295,3 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(debug=True, host="0.0.0.0", port=port)
-
-
-
-
-
