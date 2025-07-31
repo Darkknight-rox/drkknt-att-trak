@@ -37,13 +37,21 @@ def save_users(data):
     json.dump(data, open(users_file, "w"))
 
 def load_data():
-    return json.load(open(attendance_file)) if os.path.exists(attendance_file) else subjects.copy()
+    all_data = json.load(open(attendance_file)) if os.path.exists(attendance_file) else {}
+    user = session.get("user")
+    if user not in all_data:
+        all_data[user] = {subj: [] for subj in subjects}
+        json.dump(all_data, open(attendance_file, "w"))
+    return all_data[user]
 
-def save_data(data):
-    json.dump(data, open(attendance_file, "w"))
+def save_data(user_data):
+    all_data = json.load(open(attendance_file)) if os.path.exists(attendance_file) else {}
+    all_data[session["user"]] = user_data
+    json.dump(all_data, open(attendance_file, "w"))
 
 @app.route("/", methods=["GET", "POST"])
 def login():
+    error = ""
     if request.method == "POST":
         users = load_users()
         u, p = request.form["username"], request.form["password"]
@@ -51,7 +59,7 @@ def login():
             session["user"] = u
             return redirect("/dashboard")
         else:
-            return "Invalid credentials"
+            error = "Wrong username or password"
     return render_template_string("""
     <html><head>
     <title>Login</title>
@@ -59,21 +67,30 @@ def login():
     </head><body class="bg-dark text-white d-flex justify-content-center align-items-center vh-100">
     <form method="post" class="p-5 rounded bg-secondary">
         <h2 class="mb-3">Login - Dark Knight Attendance Tracker</h2>
+        {% if error %}<div class="alert alert-danger">{{error}}</div>{% endif %}
         <input name="username" placeholder="Username" class="form-control mb-2" required>
         <input name="password" type="password" placeholder="Password" class="form-control mb-3" required>
         <button class="btn btn-light w-100">Login</button>
         <p class="mt-3 text-center"><a href="/register" class="text-white">Create account</a></p>
     </form></body></html>
-    """)
+    """, error=error)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    error = ""
     if request.method == "POST":
         users = load_users()
         u, p = request.form["username"], request.form["password"]
-        users[u] = p
-        save_users(users)
-        return redirect("/")
+        if u in users:
+            error = "Username already taken"
+        else:
+            users[u] = p
+            save_users(users)
+            # Initialize empty attendance for the new user
+            all_data = json.load(open(attendance_file)) if os.path.exists(attendance_file) else {}
+            all_data[u] = {subj: [] for subj in subjects}
+            json.dump(all_data, open(attendance_file, "w"))
+            return redirect("/")
     return render_template_string("""
     <html><head>
     <title>Register</title>
@@ -81,12 +98,13 @@ def register():
     </head><body class="bg-dark text-white d-flex justify-content-center align-items-center vh-100">
     <form method="post" class="p-5 rounded bg-secondary">
         <h2 class="mb-3">Register - Dark Knight Tracker</h2>
+        {% if error %}<div class="alert alert-danger">{{error}}</div>{% endif %}
         <input name="username" placeholder="Choose Username" class="form-control mb-2" required>
         <input name="password" type="password" placeholder="Choose Password" class="form-control mb-3" required>
         <button class="btn btn-light w-100">Register</button>
         <p class="mt-3 text-center"><a href='/' class='text-white'>Back to Login</a></p>
     </form></body></html>
-    """)
+    """, error=error)
 
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
@@ -102,7 +120,6 @@ def dashboard():
         return redirect("/dashboard")
     
     today = datetime.now().strftime("%A")
-    current_day_subjects = weekly_timetable.get(today, [])
 
     html = """
     <html><head>
@@ -270,10 +287,7 @@ def logout():
     return redirect("/")
 
 if __name__ == "__main__":
-    import os
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Render will set PORT
+    port = int(os.environ.get("PORT", 10000))
     app.run(debug=True, host="0.0.0.0", port=port)
 
 
